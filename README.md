@@ -29,10 +29,24 @@ collects that premium most of the time. The exception is what matters: in March 
 realized vol shot above implied, which is where short-vol positions take their worst
 losses. It's a risk premium, not free money.
 
+## Arbitrage-free SVI calibration
+A raw scatter of implied vols is not desk-quality. `svi.py` fits Gatheral's raw SVI
+parameterization to the ~30-day slice and checks the butterfly no-arbitrage
+condition g(k) >= 0. The latest fit has an RMSE near 0.0001 and min g(k) well above
+zero, so the calibrated smile is arbitrage-free (`svi_fit.png`).
+
+## The honest version of harvesting the premium
+`vrp_strategy.py` simulates selling one-month variance every month and shows the
+whole picture, not just the average. It wins about 81% of months with a Sharpe near
+0.7, but the worst month is roughly -85 vol points and the conditional loss (CVaR)
+is about -29 (`vrp_strategy.png`). That is the point: the premium is real, and so is
+the steamroller.
+
 ## Run it
 ```bash
 pip install -r requirements.txt
-python3 run.py
+python3 run.py            # surface, skew, term structure, SVI fit, VRP
+python3 vrp_strategy.py   # honest short-vol carry with tail and drawdown
 ```
 
 ## Notes on method
@@ -47,4 +61,5 @@ python3 run.py
 
 ## Layout
 `blackscholes.py` (pricing and IV inversion), `data.py` (market data),
-`surface.py` (surface construction), `run.py` (charts and the VRP analysis).
+`surface.py` (surface construction), `svi.py` (SVI calibration and no-arb check),
+`run.py` (charts, SVI fit, VRP), `vrp_strategy.py` (honest short-vol carry).

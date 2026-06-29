@@ -16,6 +16,7 @@ from scipy.interpolate import griddata
 
 from data import get_spot, get_riskfree, get_chains, get_vix_spy
 from surface import build_surface
+from svi import calibrate_svi, svi_total_variance, butterfly_g
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TICKER = "SPY"
@@ -80,6 +81,32 @@ def plot_term(df):
     plt.close()
 
 
+def plot_svi(df, S):
+    target = 30 / 365.0
+    T0 = min(df["T"].unique(), key=lambda t: abs(t - target))
+    sub = df[df["T"] == T0]
+    k = np.log(sub["moneyness"].values)
+    w = (sub["iv"].values ** 2) * T0
+    params, rmse = calibrate_svi(k, w)
+    kk = np.linspace(k.min(), k.max(), 200)
+    iv_fit = np.sqrt(np.maximum(svi_total_variance(kk, **params), 1e-10) / T0) * 100
+    g = butterfly_g(kk, params)
+    plt.figure(figsize=(9, 5))
+    plt.scatter(k, sub["iv"].values * 100, s=22, color="#2563eb", label="market IV")
+    plt.plot(kk, iv_fit, color="#dc2626", lw=2, label="SVI fit")
+    plt.axvline(0.0, ls="--", color="gray")
+    plt.xlabel("log-moneyness  log(K/S)")
+    plt.ylabel("Implied vol (%)")
+    plt.title(f"SVI calibration, ~{T0*365:.0f}-day slice "
+              f"(RMSE {rmse:.4f}, min g(k) {g.min():+.3f})")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(os.path.join(HERE, "svi_fit.png"), dpi=130)
+    plt.close()
+    return rmse, float(g.min())
+
+
 def vrp_analysis():
     spy, vix = get_vix_spy(years=12)
     rets = spy.pct_change()
@@ -117,6 +144,7 @@ def main():
     plot_surface(surf, S)
     plot_skew(surf)
     plot_term(surf)
+    svi_rmse, min_g = plot_svi(surf, S)
 
     # snapshot ATM ~30d IV
     target = 30 / 365.0
@@ -131,6 +159,9 @@ def main():
     print(f"ATM ~{T0*365:.0f}d implied vol:        {atm_iv:.1f}%")
     print(f"Mean variance risk premium (12y):  {mean_vrp:+.2f} vol points")
     print(f"% of days implied > realized:      {pct_pos:.1f}%")
+    print(f"SVI fit (~30d slice):              RMSE {svi_rmse:.4f}, "
+          f"butterfly min g(k) = {min_g:+.3f} "
+          f"({'no-arb' if min_g >= 0 else 'butterfly arb present'})")
     print("\nInterpretation: implied vol sits above subsequent realized vol the "
           "large majority of the time — the variance risk premium. Selling vol "
           "harvests it, but the left tail (when realized spikes above implied) is "
