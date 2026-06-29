@@ -1,47 +1,50 @@
-# SPY Implied Volatility Surface + Variance Risk Premium
+# SPY Implied Volatility Surface and the Variance Risk Premium
 
-Builds a live implied-volatility surface for SPY options and quantifies the
-**variance risk premium** — the gap between what the options market *prices in*
-(implied vol) and what *actually happens* (realized vol).
+This project builds an implied-volatility surface for SPY options and measures the
+variance risk premium: the gap between the volatility the options market prices in
+and the volatility that actually shows up.
 
-Implied vols are computed **from scratch** by inverting the Black-Scholes price
-(Brent root-finder), not by reading a vendor's IV column — that's the point.
+I compute every implied vol myself by inverting the Black-Scholes price with a
+Brent root-finder, rather than reading a data vendor's IV column. That inversion
+is the part worth doing.
 
 ## What it does
-1. **Vol surface** — pulls the full SPY option chain (yfinance), keeps liquid OTM
-   options, inverts Black-Scholes-Merton (with dividend yield + T-bill rate) for
-   each contract's implied vol, and renders:
-   - `vol_surface.png` — the 3D surface (moneyness × expiry × IV)
-   - `vol_skew.png` — the ~30-day skew (downside puts bid up vs upside calls)
-   - `term_structure.png` — ATM IV across expiries
-2. **Variance risk premium** — compares VIX (30-day implied) to the *subsequent*
-   21-day realized vol over 12 years → `vrp.png`.
+1. Pulls the full SPY option chain, keeps liquid out-of-the-money options, and
+   solves Black-Scholes-Merton (with a dividend yield and T-bill rate) for each
+   contract's implied vol. It then plots:
+   - `vol_surface.png`: the 3D surface across moneyness and expiry
+   - `vol_skew.png`: the roughly 30-day skew (downside puts priced richer than calls)
+   - `term_structure.png`: at-the-money IV across expiries
+2. Compares VIX (30-day implied vol) to the realized vol over the following 21 days,
+   across 12 years, and plots the result in `vrp.png`.
 
-## Findings (illustrative, 2026-06-29 run)
-- ATM ~30-day implied vol: **~15%**
-- Mean variance risk premium (12y): **+3.5 vol points** (implied over realized)
-- Implied exceeded subsequent realized **~82% of days**
+## What I found (run on 2026-06-29)
+- At-the-money 30-day implied vol: about 15%
+- Average variance risk premium over 12 years: about +3.5 vol points (implied above
+  realized)
+- Implied vol came in above the realized vol that followed on roughly 82% of days
 
-**Interpretation (honest):** implied vol sits above realized the large majority
-of the time — selling vol harvests that premium. But the left tail (March 2020,
-where realized spiked *above* implied) is where vol sellers blow up. It's a risk
-premium, not free money.
+So the options market tends to overprice near-term volatility, and selling vol
+collects that premium most of the time. The exception is what matters: in March 2020
+realized vol shot above implied, which is where short-vol positions take their worst
+losses. It's a risk premium, not free money.
 
-## Run
+## Run it
 ```bash
 pip install -r requirements.txt
 python3 run.py
 ```
 
-## Methodology notes
-- **OTM-only** quotes (calls for K≥S, puts for K<S) — more liquid, avoids
-  put/call-parity inconsistencies.
-- Mid price = (bid+ask)/2 where available, else last.
-- Drops sub-7-day expiries and |moneyness| outside 0.88–1.12 (noisy wings).
-- Risk-free = 13-week T-bill (^IRX); dividend yield ≈ 1.3% for SPY.
-- yfinance data is delayed/retail-grade — fine for structure/teaching, not a
-  production trading signal. A real desk would use clean, timestamped vendor data.
+## Notes on method
+- Out-of-the-money quotes only (calls above spot, puts below). They're more liquid
+  and avoid put/call parity issues.
+- Mid price is (bid+ask)/2 where both are available, otherwise last price.
+- Drops expiries under 7 days and moneyness outside 0.88 to 1.12, where the data
+  gets noisy.
+- Risk-free rate from the 13-week T-bill (^IRX); SPY dividend yield assumed near 1.3%.
+- Data comes from yfinance, which is delayed and retail-grade. Fine for studying the
+  structure, not something I'd trade on. A real desk would use clean vendor data.
 
-## Files
-`blackscholes.py` (pricing + IV inversion) · `data.py` (market data) ·
-`surface.py` (surface construction) · `run.py` (charts + VRP + findings)
+## Layout
+`blackscholes.py` (pricing and IV inversion), `data.py` (market data),
+`surface.py` (surface construction), `run.py` (charts and the VRP analysis).
